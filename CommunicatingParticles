@@ -1,0 +1,177 @@
+import React, { Component, PropTypes } from 'react';
+import { findDOMNode } from 'react-dom';
+
+export class Particle {
+    canvas;
+    Xpos;
+    Ypos;
+    width;
+    height;
+    speed;
+    directionAngle;
+    color;
+    radius;
+    d;
+
+    opts = {
+        particleColor: "#fcfcfc",
+        defaultSpeed: 1,
+        addedSpeed: 2,
+        defaultRadius: 2,
+        addedRadius: 2
+    }
+
+    constructor(props) {
+        this.canvas = props.canvas;
+        this.width = props.width;
+        this.height = props.height;
+        this.Xpos = props.Xpos ? props.Xpos : Math.random() * this.width;
+        this.Ypos = props.Ypos ? props.Ypos : Math.random() * this.height;
+        this.speed = this.opts.defaultSpeed + Math.random() * this.opts.addedSpeed;
+        this.directionAngle = Math.floor(Math.random() * 360);
+        this.color = this.opts.particleColor;
+        this.radius = this.opts.defaultRadius + Math.random() * this.opts.addedRadius;
+        this.d = {
+            x: Math.cos(this.directionAngle) * this.speed,
+            y: Math.sin(this.directionAngle) * this.speed
+        };
+    }
+
+    border() {
+        if (this.Xpos >= this.width || this.Xpos <= 0) {
+            this.d.x *= -1;
+        }
+        if (this.Ypos >= this.height || this.Ypos <= 0) {
+            this.d.y *= -1;
+        }
+
+        this.Xpos > this.width ? this.Xpos = this.width : this.Xpos;
+        this.Ypos > this.height ? this.Ypos = this.height : this.Ypos;
+        this.Xpos < 0 ? this.Xpos = 0 : this.Xpos;
+        this.Ypos < 0 ? this.Ypos = 0 : this.Ypos;
+    }
+
+    draw() {
+        this.canvas.beginPath();
+        this.canvas.arc(this.Xpos, this.Ypos, this.radius, 0, Math.PI * 2);
+        this.canvas.closePath();
+        this.canvas.fillStyle = this.color;
+        this.canvas.fill();
+    }
+
+    update() {
+        this.border();
+        this.Xpos += this.d.x;
+        this.Ypos += this.d.y;
+    }
+}
+
+export class CommunicatingParticles extends Component {
+    height = 500;
+    width = 500;
+    canvasNode;
+    canvas;
+    tick = 0;
+    opts = {
+        width: 300,
+        height: 150,
+        backgroundColor: "#222",
+        particleAmount: 15,
+        communicationRadius: 150
+    };
+    particles = [];
+
+    constructor(props) {
+        super(props);
+    }
+
+    componentDidMount() {
+        this.opts.particleAmount = this.props.particleAmount;
+
+        this.canvasNode = findDOMNode(this.refs.canvas);
+        this.canvas = this.canvasNode.getContext("2d");
+        this.adjustCanvas();
+        this.setUp();
+    }
+
+    adjustCanvas() {
+        this.width = this.canvasNode.width = this.canvasNode.clientWidth || this.opts.width;
+        this.height = this.canvasNode.height = this.canvasNode.clientHeight || this.opts.height;
+    }
+
+    setUp() {
+        for (let i = 0; i < this.opts.particleAmount; i++) {
+            this.particles.push(new Particle({
+                height: this.height,
+                width: this.width,
+                canvas: this.canvas
+            }));
+        }
+        requestAnimationFrame(this.loop.bind(this));
+    }
+
+    loop() {
+        requestAnimationFrame(this.loop.bind(this));
+        this.tick++;
+
+        this.canvas.fillStyle = this.opts.backgroundColor;
+        this.canvas.fillRect(0, 0, this.width, this.height);
+
+        for (let i = 0; i < this.particles.length; i++) {
+            this.particles[i].update();
+            this.particles[i].draw();
+        }
+
+        for (let j = 0; j < this.particles.length; j++) {
+            this.CommunicateParticles(this.particles[j], this.particles);
+        }
+    }
+
+    onCanvasClick(e) {
+        this.particles.push(new Particle({
+            height: this.height,
+            width: this.width,
+            canvas: this.canvas,
+            Xpos: e.clientX,
+            Ypos: e.clientY
+        }));
+    }
+
+    onContextMenu(e) {
+        e.preventDefault();
+        this.particles.splice(this.particles.length - 1, 1);
+    }
+
+    checkDistance(particle1, particle2) {
+        return Math.sqrt(Math.pow(particle2.Xpos - particle1.Xpos, 2) + Math.pow(particle2.Ypos - particle1.Ypos, 2))
+    }
+
+    CommunicateParticles(particle1) {
+        for (let i = 0; i < this.particles.length; i++) {
+            let distance = this.checkDistance(particle1, this.particles[i]);
+            let opacity = 1 - distance / this.opts.communicationRadius;
+
+            if (opacity > 0) {
+                this.canvas.lineWidth = opacity;
+                this.canvas.strokeStyle = "rgba(255,255,255,0.5)";
+                this.canvas.beginPath();
+                this.canvas.moveTo(particle1.Xpos, particle1.Ypos);
+                this.canvas.lineTo(this.particles[i].Xpos, this.particles[i].Ypos);
+                this.canvas.closePath();
+                this.canvas.stroke();
+            }
+        }
+    }
+
+    render() {
+        return (
+            <div>
+                <canvas className="canvas"
+                    ref="canvas"
+                    onClick={this.onCanvasClick.bind(this)}
+                    onContextMenu={this.onContextMenu.bind(this)}
+                />
+            </div>
+        );
+    }
+}
